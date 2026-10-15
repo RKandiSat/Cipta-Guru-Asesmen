@@ -168,7 +168,15 @@ details.dt summary::-webkit-details-marker { display:none; }
 .numin { width:80px; padding:7px 9px; border:1.5px solid var(--line); border-radius:9px; font-family:inherit; font-size:.85rem; }
 .jwb { background:#F8FAFC; border-radius:10px; padding:10px 12px; font-size:.84rem; line-height:1.55; white-space:pre-wrap; margin:6px 0; }
 @media (max-width:760px){ .row2,.row3 { grid-template-columns:1fr; } }
+#mN::placeholder { color:#9AA3AF; font-weight:300; opacity:1; }
+#areaCetak { display:none; }
+.kartu-judul { display:none; font-weight:800; font-size:1.05rem; margin:0 0 10px; }
 @media print {
+  body.cetak-kartu > *:not(#areaCetak) { display:none !important; }
+  body.cetak-kartu #areaCetak { display:block !important; padding:12mm; }
+  body.cetak-kartu .kartu { border:1.5px solid #000 !important; box-shadow:none; margin:0 !important; }
+  body.cetak-kartu .kartu .sh h3 { display:none; }
+  body.cetak-kartu .kartu-judul { display:block; }
   .top, .demo, .noprint { display:none !important; }
   body { background:#fff; } main { padding:0; max-width:none; }
   .rapor { border:0; padding:0; }
@@ -477,10 +485,13 @@ async function guruHome(app){
   if (S.jenis !== 'formatif') return;
   const body = $('gBody'); loading(body);
   if (!G.combos.length) G.combos = await rpc('as_guru_mapel', { p_passcode:S.pc, p_jenis:'formatif' });
-  if (S.gTab==='bank') await gBank(body);
-  else if (S.gTab==='sesi') await gSesi(body);
-  else if (S.gTab==='murid') await gMurid(body);
-  else await gHasil(body);
+  const tabIni = S.gTab;
+  try {
+    if (tabIni==='bank') await gBank(body);
+    else if (tabIni==='sesi') await gSesi(body);
+    else if (tabIni==='murid') await gMurid(body);
+    else await gHasil(body);
+  } catch(e) { if (S.gTab !== tabIni) return; throw e; }   // abaikan sisa muatan tab lama bila guru sudah pindah tab
 }
 const mapelList = () => [...new Set(G.combos.map(c=>c.mapel))];
 const kelasDari = m => G.combos.filter(c=>c.mapel===m).map(c=>c.kelas);
@@ -530,36 +541,55 @@ async function buatSesi(){
 async function ubahSesi(kode, st){ try { await rpc('as_guru_ujian_status', { p_passcode:S.pc, p_kode:kode, p_status:st }); toast(st==='buka'?'Sesi dibuka':'Sesi ditutup'); render(); } catch(e){ toast(e.message, true); } }
 
 async function gMurid(body){
-  const list = await rpc('as_guru_siswa_list', { p_passcode:S.pc, p_kelas: G.siswaK?+G.siswaK:null });
   const kls = '<option value="">Semua Kelas</option>' + [1,2,3,4,5,6].map(k=>`<option value="${k}" ${G.siswaK==k?'selected':''}>Kelas ${k}</option>`).join('');
   body.innerHTML = `
   <div class="card" style="margin-bottom:18px"><h3 style="font-size:1rem;margin-bottom:6px">Tambah Murid</h3>
-    <div class="sub">Tempel daftar nama (satu nama per baris). Kode siswa dan PIN dibuatkan otomatis. PIN hanya tampil sekali, jadi cetak atau catat.</div>
-    <div class="row2" style="margin-top:6px"><div><label class="f">Kelas</label><select class="i" id="mK">${[1,2,3,4,5,6].map(k=>`<option value="${k}">Kelas ${k}</option>`).join('')}</select></div><div></div></div>
-    <label class="f">Daftar Nama</label><textarea class="i" id="mN" style="min-height:110px" placeholder="Ahmad Rizky&#10;Dinda Salsabila&#10;Fajar Nugroho"></textarea>
-    <button class="btn pri" style="margin-top:12px" onclick="impor()">+ Tambahkan</button></div>
+    <div class="sub">Pilih kelas, ketik satu nama murid, lalu tekan Tambahkan. Kode siswa dan PIN dibuatkan otomatis. PIN hanya tampil sekali, jadi cetak atau catat.</div>
+    <div class="row2" style="margin-top:6px"><div><label class="f">Kelas</label><select class="i" id="mK">${[1,2,3,4,5,6].map(k=>`<option value="${k}" ${G.kelasTambah==k?'selected':''}>Kelas ${k}</option>`).join('')}</select></div><div></div></div>
+    <label class="f">Nama Murid</label><input class="i" id="mN" type="text" maxlength="80" autocomplete="off" placeholder="ketik nama murid di sini" onkeydown="if(event.key==='Enter'){event.preventDefault();impor();}">
+    <button class="btn pri" style="margin-top:12px" id="btnTambah" onclick="impor()">+ Tambahkan</button></div>
   <div id="hasilImpor"></div>
-  <div class="sh"><div class="sub">${list.length} murid</div><select class="i" style="width:auto" onchange="G.siswaK=this.value;render()">${kls}</select></div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Kode</th><th>Nama</th><th>Kelas</th><th></th></tr></thead><tbody>
-    ${list.length ? list.map(s=>`<tr><td class="pinbox">${esc(s.kode)}</td><td>${esc(s.nama)}</td><td>${s.kelas}</td>
+  <div class="sh"><div class="sub" id="jmlMurid">0 murid</div><select class="i" style="width:auto" onchange="G.siswaK=this.value;muatDaftar()">${kls}</select></div>
+  <div class="card"><div class="tw"><table><thead><tr><th>Kode</th><th>Nama</th><th>Kelas</th><th></th></tr></thead><tbody id="daftarMurid"><tr><td colspan="4" class="empty">Memuat…</td></tr></tbody></table></div></div>`;
+  await muatDaftar();
+}
+async function muatDaftar(){
+  const list = await rpc('as_guru_siswa_list', { p_passcode:S.pc, p_kelas: G.siswaK?+G.siswaK:null });
+  const jm = $('jmlMurid'), tb = $('daftarMurid'); if (!jm || !tb) return;
+  jm.textContent = list.length + ' murid' + (G.siswaK ? ' (Kelas '+G.siswaK+')' : ' (semua kelas)');
+  tb.innerHTML = list.length ? list.map(s=>`<tr><td class="pinbox">${esc(s.kode)}</td><td>${esc(s.nama)}</td><td>${s.kelas}</td>
       <td style="white-space:nowrap"><button class="btn" style="padding:5px 10px;font-size:.7rem" onclick="resetPin('${esc(s.kode)}')">Atur ulang PIN</button>
-      <button class="btn" style="padding:5px 10px;font-size:.7rem;color:var(--bad)" onclick="hapusMurid('${esc(s.kode)}','${esc(s.nama).replace(/'/g,'')}')">Hapus</button></td></tr>`).join('') : '<tr><td colspan="4" class="empty">Belum ada murid.</td></tr>'}</tbody></table></div></div>`;
+      <button class="btn" style="padding:5px 10px;font-size:.7rem;color:var(--bad)" onclick="hapusMurid('${esc(s.kode)}','${esc(s.nama).replace(/'/g,'')}')">Hapus</button></td></tr>`).join('') : '<tr><td colspan="4" class="empty">Belum ada murid.</td></tr>';
 }
 async function impor(){
-  const nama = $('mN').value.split('\n').map(x=>x.trim()).filter(Boolean); const kelas = +$('mK').value;
-  if (!nama.length) { toast('Isi daftar nama dulu', true); return; }
-  try { const r = await rpc('as_guru_siswa_impor', { p_passcode:S.pc, p_data: nama.map(n=>({ nama:n, kelas })) });
-    $('hasilImpor').innerHTML = kartuLogin(r, 'Murid berhasil ditambahkan'); $('mN').value=''; 
+  const nama = ($('mN').value || '').replace(/\s+/g,' ').trim(); const kelas = +$('mK').value;
+  if (nama.length < 2) { toast('Ketik nama murid dulu', true); $('mN').focus(); return; }
+  const btn = $('btnTambah'); btn.disabled = true;
+  try { const r = await rpc('as_guru_siswa_impor', { p_passcode:S.pc, p_data: [{ nama, kelas }] });
+    G.kelasTambah = kelas;
+    $('hasilImpor').innerHTML = kartuLogin(r, 'Murid berhasil ditambahkan'); $('mN').value=''; $('mN').focus();
+    await muatDaftar();
   } catch(e){ toast(e.message, true); }
+  btn.disabled = false;
+}
+function cetakKartu(){
+  const asal = document.querySelector('#hasilImpor .kartu'); if (!asal) return;
+  const b = document.body; let area = document.getElementById('areaCetak');
+  if (!area) { area = document.createElement('div'); area.id = 'areaCetak'; b.appendChild(area); }
+  area.innerHTML = asal.outerHTML; b.classList.add('cetak-kartu');
+  const selesai = () => { b.classList.remove('cetak-kartu'); area.innerHTML = ''; window.removeEventListener('afterprint', selesai); };
+  window.addEventListener('afterprint', selesai);
+  window.print();
 }
 function kartuLogin(r, judul){
-  return `<div class="card" style="margin-bottom:18px;border-color:var(--ok)"><div class="sh" style="margin-bottom:8px"><h3 style="font-size:1rem">✅ ${judul}</h3><button class="btn pri noprint" onclick="window.print()">🖨 Cetak Kartu Login</button></div>
-   <div class="sub" style="margin-bottom:8px">Catat PIN sekarang. PIN tidak bisa dilihat lagi nanti (hanya bisa diatur ulang).</div>
+  return `<div class="card kartu" style="margin-bottom:18px;border-color:var(--ok)"><div class="sh" style="margin-bottom:8px"><h3 style="font-size:1rem">✅ ${judul}</h3><button class="btn pri noprint" onclick="cetakKartu()">🖨 Cetak Kartu Ini</button></div>
+   <div class="kartu-judul">Kartu Login Asesmen · Cipta Guru</div>
    <div class="tw"><table><thead><tr><th>Nama</th><th>Kelas</th><th>Kode Siswa</th><th>PIN</th></tr></thead><tbody>${r.map(x=>`<tr><td>${esc(x.nama)}</td><td>${x.kelas||''}</td><td class="pinbox">${esc(x.kode)}</td><td class="pinbox">${esc(x.pin)}</td></tr>`).join('')}</tbody></table></div>
-   <div class="sub" style="margin-top:8px">Alamat ujian: <b>asesmen.ciptaguru.com</b></div></div>`;
+   <div class="sub" style="margin-top:8px">Alamat ujian: <b>asesmen.ciptaguru.com</b> → pilih <b>Saya Murid</b>, lalu masukkan kode siswa dan PIN.</div>
+   <div class="sub noprint" style="margin-top:6px">Catat PIN sekarang. PIN tidak bisa dilihat lagi nanti (hanya bisa diatur ulang).</div></div>`;
 }
 async function resetPin(kode){ try { const r = await rpc('as_guru_siswa_pin', { p_passcode:S.pc, p_kode:kode }); $('hasilImpor').innerHTML = kartuLogin([r], 'PIN baru dibuat'); window.scrollTo(0,0); } catch(e){ toast(e.message, true); } }
-async function hapusMurid(kode, nama){ if (!confirm('Hapus murid '+nama+'? Nilainya ikut terhapus.')) return; try { await rpc('as_guru_siswa_hapus', { p_passcode:S.pc, p_kode:kode }); toast('Murid dihapus'); render(); } catch(e){ toast(e.message, true); } }
+async function hapusMurid(kode, nama){ if (!confirm('Hapus murid '+nama+'? Nilainya ikut terhapus.')) return; try { await rpc('as_guru_siswa_hapus', { p_passcode:S.pc, p_kode:kode }); toast('Murid dihapus'); muatDaftar(); } catch(e){ toast(e.message, true); } }
 
 async function gHasil(body){
   const ul = await rpc('as_guru_ujian_list', { p_passcode:S.pc, p_jenis:'formatif' });
