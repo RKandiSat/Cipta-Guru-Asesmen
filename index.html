@@ -530,13 +530,19 @@ async function gSesi(body){
     <div class="meta"><span>⏱ ${u.durasi} menit</span><span>❓ ${u.jumlah_soal} soal</span><span>👥 ${u.murid} murid</span><span>✍ ${u.selesai}/${u.mulai} selesai</span></div>
     <span class="stat ${u.status==='buka'?'st-open':u.status==='tutup'?'st-done':'st-soon'}">${u.status==='buka'?'Dibuka':u.status==='tutup'?'Ditutup':'Draft'}</span>
     <div style="display:flex;gap:8px;flex-wrap:wrap">${u.status!=='buka'?`<button class="btn pri" onclick="ubahSesi('${u.kode}','buka')">${u.status==='tutup'?'Buka Lagi':'Buka'}</button>`:`<button class="btn" onclick="ubahSesi('${u.kode}','tutup')">Tutup Sesi</button>`}
-    <button class="btn" onclick="G.hasilKode='${u.kode}';S.gTab='hasil';render()">Hasil</button></div></div>`).join('')+'</div>' : '<div class="empty card">Belum ada sesi. Buat sesi pertamamu di atas.</div>'}`;
+    <button class="btn" onclick="G.hasilKode='${u.kode}';S.gTab='hasil';render()">Hasil</button>
+    <button class="btn" style="color:var(--bad)" onclick="hapusSesi('${u.kode}','${esc(u.judul).replace(/'/g,'')}',${u.selesai})">Hapus</button></div></div>`).join('')+'</div>' : '<div class="empty card">Belum ada sesi. Buat sesi pertamamu di atas.</div>'}`;
   isiKelasSesi();
 }
 function isiKelasSesi(){ const m=$('sM').value; $('sK').innerHTML = kelasDari(m).map(k=>`<option value="${k}">Kelas ${k}</option>`).join(''); }
 async function buatSesi(){
   try { const r = await rpc('as_guru_ujian_buat', { p_passcode:S.pc, p_jenis:'formatif', p_mapel:$('sM').value, p_kelas:+$('sK').value, p_judul:$('sJ').value, p_durasi:+$('sD').value||60 });
     toast('Sesi dibuat. Kodenya: '+r.kode); render(); } catch(e){ toast(e.message, true); }
+}
+async function hapusSesi(kode, judul, selesai){
+  const peringatan = selesai>0 ? '\n\n'+selesai+' murid sudah selesai mengerjakan. Nilai dan jawaban mereka ikut terhapus dan tidak bisa dikembalikan.' : '';
+  if (!confirm('Hapus sesi "'+judul+'" (kode '+kode+')?'+peringatan)) return;
+  try { await rpc('as_guru_ujian_hapus', { p_passcode:S.pc, p_kode:kode }); if (G.hasilKode===kode) G.hasilKode=null; toast('Sesi dihapus'); render(); } catch(e){ toast(e.message, true); }
 }
 async function ubahSesi(kode, st){ try { await rpc('as_guru_ujian_status', { p_passcode:S.pc, p_kode:kode, p_status:st }); toast(st==='buka'?'Sesi dibuka':'Sesi ditutup'); render(); } catch(e){ toast(e.message, true); } }
 
