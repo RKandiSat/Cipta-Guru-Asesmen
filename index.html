@@ -164,6 +164,12 @@ details.dt summary::-webkit-details-marker { display:none; }
 .save { font-size:.68rem; color:var(--mut); } .save.bad { color:var(--bad); font-weight:700; }
 .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; } .row3 { display:grid; grid-template-columns:2fr 1fr 1fr; gap:10px; }
 .pinbox { font-family:monospace; font-weight:800; letter-spacing:2px; }
+.pw { position:relative; } .pw .i { padding-right:44px; }
+.eye { position:absolute; right:6px; top:50%; transform:translateY(-50%); border:0; background:transparent; font-size:1.1rem; padding:6px 9px; cursor:pointer; border-radius:8px; }
+.eye:hover { background:#EEF2FF; }
+.galat { margin-top:14px; padding:10px 13px; border-radius:10px; background:#FEE2E2; color:#991B1B; font-size:.84rem; line-height:1.5; font-weight:600; }
+.akses { margin-top:6px; padding-top:8px; border-top:1px dashed var(--line); }
+.ruangchip { display:flex; flex-direction:column; gap:2px; padding:9px 13px; border:1.5px solid var(--line); border-radius:12px; background:#F8F7FF; font-size:.72rem; color:var(--mut); }
 .spin { text-align:center; padding:50px 10px; color:var(--mut); font-size:.85rem; }
 .numin { width:80px; padding:7px 9px; border:1.5px solid var(--line); border-radius:9px; font-family:inherit; font-size:.85rem; }
 .jwb { background:#F8FAFC; border-radius:10px; padding:10px 12px; font-size:.84rem; line-height:1.55; white-space:pre-wrap; margin:6px 0; }
@@ -176,6 +182,7 @@ details.dt summary::-webkit-details-marker { display:none; }
   body.cetak-kartu #areaCetak { display:block !important; padding:12mm; }
   body.cetak-kartu .kartu { border:1.5px solid #000 !important; box-shadow:none; margin:0 !important; }
   body.cetak-kartu .kartu .sh h3 { display:none; }
+  body.cetak-kartu table { width:100%; border-collapse:collapse; font-size:11pt; } body.cetak-kartu th, body.cetak-kartu td { border:1px solid #000; padding:5px 8px; text-align:left; } body.cetak-kartu .noprint { display:none !important; }
   body.cetak-kartu .kartu-judul { display:block; }
   .top, .demo, .noprint { display:none !important; }
   body { background:#fff; } main { padding:0; max-width:none; }
@@ -216,7 +223,12 @@ const TAGCLS = { formatif:'t-f', sumatif:'t-s', jenjang:'t-j', tahun:'t-t' };
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function ss(k, v){ try { if (v === undefined) return sessionStorage.getItem(k); if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch(e){} return null; }
-function toast(msg, err){ const t=document.createElement('div'); t.className='toast'+(err?' err':''); t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(), 3800); }
+function toast(msg, err){ const t=document.createElement('div'); t.className='toast'+(err?' err':''); t.textContent=msg;
+  if (err) { t.textContent=''; const sp=document.createElement('span'); sp.textContent=msg; t.appendChild(sp); const x=document.createElement('b'); x.textContent=' ✕'; x.style.cssText='margin-left:10px;cursor:pointer'; t.appendChild(x); t.onclick=()=>t.remove(); }
+  document.body.appendChild(t); setTimeout(()=>t.remove(), err ? 20000 : 3800); }
+function galat(msg){ const e=$('galat'); if (e){ e.textContent=msg; e.style.display=msg?'block':'none'; } else if (msg) toast(msg,true); }
+function inputSandi(id, ph, extra){ return `<div class="pw"><input class="i" id="${id}" type="password" placeholder="${ph}" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" ${extra||''}><button type="button" class="eye" aria-label="Tampilkan atau sembunyikan" onclick="tglMata('${id}',this)">👁</button></div>`; }
+function tglMata(id, b){ const i=$(id); if(!i) return; const lihat = i.type==='password'; i.type = lihat?'text':'password'; b.textContent = lihat?'🙈':'👁'; clearTimeout(b._t); if (lihat) b._t=setTimeout(()=>{ i.type='password'; b.textContent='👁'; }, 20000); }
 async function rpc(name, args){
   let res;
   try { res = await fetch(SB_URL + '/rest/v1/rpc/' + name, { method:'POST', headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+SB_KEY, 'Content-Type':'application/json' }, body: JSON.stringify(args || {}) }); }
@@ -290,29 +302,40 @@ function beranda(app){
   <p class="sub" style="text-align:center;margin-top:26px">Bagian dari ekosistem <b>Cipta Guru</b> · ciptaguru.com</p>`;
 }
 function muridLogin(app){
-  app.innerHTML = `<div class="card login"><h2>Masuk Murid</h2>
-    <p class="s">Gunakan kode siswa dan PIN dari gurumu. Kamu hanya bisa membuka ujian untuk kelasmu sendiri.</p>
-    <label class="f">Kode Siswa</label><input class="i" id="kd" placeholder="contoh: S4-0012" autocomplete="off" autocapitalize="characters">
-    <label class="f">PIN</label><input class="i" id="pn" type="password" inputmode="numeric" placeholder="PIN dari guru" autocomplete="off">
-    <button class="btn pri" id="bMasuk" style="width:100%;margin-top:18px;padding:12px" onclick="doMurid()">Masuk</button>
-    <p class="sub" style="margin-top:14px;text-align:center">Lupa PIN? Minta gurumu untuk membuatkan yang baru.</p></div>`;
-  $('pn').addEventListener('keydown', e => { if (e.key==='Enter') doMurid(); });
+  app.innerHTML = `<div class="card login"><h2>Masuk Ujian</h2>
+    <p class="s">Isi tiga kolom di bawah sesuai lembar dari gurumu, lalu tekan Masuk.</p>
+    <label class="f">Kode Siswa</label><input class="i" id="kd" placeholder="contoh: S4-0012" autocomplete="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase">
+    <label class="f">PIN</label>${inputSandi('pn','PIN dari guru','inputmode="numeric"')}
+    <label class="f">Kode Ruang Asesmen</label><input class="i" id="rg" placeholder="6 karakter, contoh: K7M2QX" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase">
+    <div id="galat" class="galat" role="alert" style="display:none"></div>
+    <button class="btn pri" id="bMasuk" style="width:100%;margin-top:18px;padding:12px" onclick="doMurid()">Masuk dan Mulai</button>
+    <p class="sub" style="margin-top:14px;text-align:center">PIN atau kode ruang tidak cocok? Tanyakan ke gurumu.</p></div>`;
+  ['kd','pn','rg'].forEach(i=>$(i).addEventListener('keydown', e => { if (e.key==='Enter') doMurid(); }));
 }
 async function doMurid(){
-  const b=$('bMasuk'); b.disabled=true;
+  const b=$('bMasuk'); galat('');
+  const kd=$('kd').value.trim(), pn=$('pn').value.trim(), rg=$('rg').value.trim();
+  if (!kd) { galat('Kode siswa belum diisi'); $('kd').focus(); return; }
+  if (!pn) { galat('PIN belum diisi'); $('pn').focus(); return; }
+  if (rg.length < 6) { galat('Kode ruang asesmen harus 6 karakter'); $('rg').focus(); return; }
+  b.disabled=true; b.textContent='Memeriksa...';
   try {
-    const r = await rpc('as_murid_login', { p_kode: $('kd').value, p_pin: $('pn').value });
-    if (!r.ok) { toast(r.pesan, true); b.disabled=false; return; }
+    const r = await rpc('as_murid_masuk', { p_kode: kd, p_pin: pn, p_ruang: rg });
+    if (!r.ok) { galat(r.pesan); b.disabled=false; b.textContent='Masuk dan Mulai'; return; }
     S.peran='murid'; S.token=r.token; S.nama=r.nama; S.kelas=r.kelas; S.kode=r.kode;
     ss('as_peran','murid'); ss('as_token',r.token); ss('as_nama',r.nama); ss('as_kelas',r.kelas); ss('as_kode',r.kode);
-    go('/murid'); render();
-  } catch(e){ toast(e.message, true); b.disabled=false; }
+    const m = await rpc('as_murid_mulai', { p_token: r.token, p_kode: r.ruang });
+    if (!m.ok) { if (m.selesai) { go('/rapor/'+m.percobaan); render(); return; } toast(m.pesan, true); go('/murid'); render(); return; }
+    siapkanRuang(m); S.ujianKode = r.ruang; ss('as_ujian', r.ruang);
+    if (location.hash === '#/ujian') render(); else go('/ujian');
+  } catch(e){ galat(e.message); b.disabled=false; b.textContent='Masuk dan Mulai'; }
 }
 function guruLogin(app){
   ambilJenisDariUrl();
   app.innerHTML = `<div class="card login"><h2>Masuk Guru</h2>
     <p class="s">Masukkan passcode guru Cipta Guru yang sama seperti di ciptaguru.com.</p>
-    <label class="f">Passcode Guru</label><input class="i" id="pc" type="password" placeholder="passcode" autocomplete="off">
+    <label class="f">Passcode Guru</label>${inputSandi('pc','passcode')}
+    <div id="galat" class="galat" role="alert" style="display:none"></div>
     <button class="btn pri" id="bMasuk" style="width:100%;margin-top:18px;padding:12px" onclick="doGuru()">Masuk</button></div>`;
   $('pc').addEventListener('keydown', e => { if (e.key==='Enter') doGuru(); });
 }
@@ -323,7 +346,7 @@ async function doGuru(){
     S.peran='guru'; S.pc=pc; S.nama=r.nama;
     ss('as_peran','guru'); ss('as_pc',pc); ss('as_nama',r.nama);
     go('/guru'); render();
-  } catch(e){ toast(e.message, true); b.disabled=false; }
+  } catch(e){ galat(e.message); b.disabled=false; }
 }
 
 /* ════════ MURID: DAFTAR UJIAN ════════ */
@@ -366,6 +389,7 @@ async function ruangMulai(){
 }
 function siapkanRuang(r){
   clearInterval(R.timer); clearTimeout(R.saver);
+  if (!r.soal || !r.soal.length) throw new Error('Soal ujian tidak berhasil dimuat. Muat ulang halaman, atau hubungi gurumu.');
   R.soal = r.soal; R.perc = r.percobaan; R.sisa = r.sisa; R.judul = r.judul; R.mapel = r.mapel; R.jenis = r.jenis; R.kelas = r.kelas;
   R.cur = 0; R.dirty = {}; R.rag = {}; R.jaw = {};
   R.soal.forEach(s => { const a = (r.jawaban||{})[s.id];
@@ -462,7 +486,7 @@ async function rapor(app, id, guru){
       <div><b>Kode Siswa</b>: ${esc(r.kode)}</div><div><b>Tanggal</b>: ${esc(tglIndo(r.selesai))}</div></div>
     <div class="score"><div><div class="sub">Nilai ${r.final?'Akhir':'Sementara'}</div><div class="big">${r.nilai==null?'–':r.nilai}</div></div>
       <div style="flex:1;min-width:180px">${r.nilai!=null?`<span class="pill ${cls(r.nilai)}">${lbl(r.nilai)}</span><div class="bar" style="margin-top:10px"><i style="width:${r.nilai}%;background:${col(r.nilai)}"></i></div>`:''}
-      ${r.final?'':`<div class="sub" style="margin-top:6px">Masih ada ${r.menunggu} soal esai yang menunggu penilaian guru. Nilai bisa berubah.</div>`}</div></div>
+      ${r.final?'':`<div class="sub" style="margin-top:6px">Masih ada ${r.menunggu} soal esai yang menunggu penilaian guru. Nilai bisa berubah.</div>`}${r.bobot?`<div class="sub" style="margin-top:6px">Cara hitung: soal otomatis ${r.bobot.otomatis}%, esai ${r.bobot.esai}%.</div>`:''}</div></div>
     <h3>Skor per Jenis Soal</h3><div class="tw"><table><thead><tr><th>Jenis</th><th>Skor</th><th>Keterangan</th></tr></thead><tbody>
       ${r.per_tipe.map(x=>`<tr><td>${TIPE[x.tipe]}</td><td>${x.menunggu? '–' : x.skor+' / '+x.maks}</td><td>${x.menunggu?'menunggu guru':(x.tipe==='ES'||x.tipe==='EP')?'dinilai guru':'otomatis'}</td></tr>`).join('')}</tbody></table></div>
     <h3>Ketercapaian Tujuan Pembelajaran</h3><div class="tw"><table><thead><tr><th>TP</th><th>Tujuan Pembelajaran</th><th>Capaian</th><th>Keterangan</th></tr></thead><tbody>
@@ -491,7 +515,7 @@ async function guruHome(app){
     else if (tabIni==='sesi') await gSesi(body);
     else if (tabIni==='murid') await gMurid(body);
     else await gHasil(body);
-  } catch(e) { if (S.gTab !== tabIni) return; throw e; }   // abaikan sisa muatan tab lama bila guru sudah pindah tab
+  } catch(e) { if (S.gTab !== tabIni || !body.isConnected || $('gBody') !== body) return; throw e; }   // abaikan sisa muatan tab lama bila guru sudah pindah tab
 }
 const mapelList = () => [...new Set(G.combos.map(c=>c.mapel))];
 const kelasDari = m => G.combos.filter(c=>c.mapel===m).map(c=>c.kelas);
@@ -527,9 +551,10 @@ async function gSesi(body){
     <button class="btn pri" style="margin-top:14px" onclick="buatSesi()">+ Buat Sesi</button></div>
   ${ul.length ? '<div class="grid">'+ul.map(u=>`<div class="ex"><span class="tag t-f">Formatif</span><h3>${esc(u.mapel)} K${u.kelas}: ${esc(u.judul)}</h3>
     <div style="font-size:.7rem;color:var(--mut)">Kode sesi untuk murid</div><div class="disp" style="font-size:1.7rem;letter-spacing:3px;color:var(--p)">${u.kode}</div>
-    <div class="meta"><span>⏱ ${u.durasi} menit</span><span>❓ ${u.jumlah_soal} soal</span><span>👥 ${u.murid} murid</span><span>✍ ${u.selesai}/${u.mulai} selesai</span></div>
+    <div class="meta"><span>⏱ ${u.durasi} menit</span><span>❓ ${u.jumlah_soal} soal</span><span>👥 ${u.murid} murid</span><span>✍ ${u.selesai}/${u.mulai} selesai</span></div><div class="akses" id="ak_${u.kode}" style="display:none"></div>
     <span class="stat ${u.status==='buka'?'st-open':u.status==='tutup'?'st-done':'st-soon'}">${u.status==='buka'?'Dibuka':u.status==='tutup'?'Ditutup':'Draft'}</span>
     <div style="display:flex;gap:8px;flex-wrap:wrap">${u.status!=='buka'?`<button class="btn pri" onclick="ubahSesi('${u.kode}','buka')">${u.status==='tutup'?'Buka Lagi':'Buka'}</button>`:`<button class="btn" onclick="ubahSesi('${u.kode}','tutup')">Tutup Sesi</button>`}
+    <button class="btn" onclick="bukaAkses('${u.kode}',${u.kelas},this)">🔑 Akses Murid</button>
     <button class="btn" onclick="G.hasilKode='${u.kode}';S.gTab='hasil';render()">Hasil</button>
     <button class="btn" style="color:var(--bad)" onclick="hapusSesi('${u.kode}','${esc(u.judul).replace(/'/g,'')}',${u.selesai})">Hapus</button></div></div>`).join('')+'</div>' : '<div class="empty card">Belum ada sesi. Buat sesi pertamamu di atas.</div>'}`;
   isiKelasSesi();
@@ -550,22 +575,60 @@ async function gMurid(body){
   const kls = '<option value="">Semua Kelas</option>' + [1,2,3,4,5,6].map(k=>`<option value="${k}" ${G.siswaK==k?'selected':''}>Kelas ${k}</option>`).join('');
   body.innerHTML = `
   <div class="card" style="margin-bottom:18px"><h3 style="font-size:1rem;margin-bottom:6px">Tambah Murid</h3>
-    <div class="sub">Pilih kelas, ketik satu nama murid, lalu tekan Tambahkan. Kode siswa dan PIN dibuatkan otomatis. PIN hanya tampil sekali, jadi cetak atau catat.</div>
+    <div class="sub">Pilih kelas, ketik satu nama murid, lalu tekan Tambahkan. Kode siswa dan PIN dibuatkan otomatis. PIN tersimpan dan selalu bisa dilihat di tabel di bawah.</div>
     <div class="row2" style="margin-top:6px"><div><label class="f">Kelas</label><select class="i" id="mK">${[1,2,3,4,5,6].map(k=>`<option value="${k}" ${G.kelasTambah==k?'selected':''}>Kelas ${k}</option>`).join('')}</select></div><div></div></div>
     <label class="f">Nama Murid</label><input class="i" id="mN" type="text" maxlength="80" autocomplete="off" placeholder="ketik nama murid di sini" onkeydown="if(event.key==='Enter'){event.preventDefault();impor();}">
     <button class="btn pri" style="margin-top:12px" id="btnTambah" onclick="impor()">+ Tambahkan</button></div>
   <div id="hasilImpor"></div>
-  <div class="sh"><div class="sub" id="jmlMurid">0 murid</div><select class="i" style="width:auto" onchange="G.siswaK=this.value;muatDaftar()">${kls}</select></div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Kode</th><th>Nama</th><th>Kelas</th><th></th></tr></thead><tbody id="daftarMurid"><tr><td colspan="4" class="empty">Memuat…</td></tr></tbody></table></div></div>`;
+  <div id="ruangInfo"></div>
+  <div class="sh"><div class="sub" id="jmlMurid">0 murid</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="cetakAkses()">🖨 Cetak Daftar Akses</button><button class="btn" id="bPinLama" style="display:none" onclick="pinLama()">Buatkan PIN yang belum ada</button></div><select class="i" style="width:auto" onchange="G.siswaK=this.value;muatDaftar()">${kls}</select></div>
+  <div class="card"><div class="tw"><table><thead><tr><th>Kode Siswa</th><th>PIN</th><th>Nama</th><th>Kelas</th><th></th></tr></thead><tbody id="daftarMurid"><tr><td colspan="5" class="empty">Memuat…</td></tr></tbody></table></div></div>`;
   await muatDaftar();
 }
 async function muatDaftar(){
-  const list = await rpc('as_guru_siswa_list', { p_passcode:S.pc, p_kelas: G.siswaK?+G.siswaK:null });
+  const [list, ul] = await Promise.all([ rpc('as_guru_siswa_list', { p_passcode:S.pc, p_kelas: G.siswaK?+G.siswaK:null }), rpc('as_guru_ujian_list', { p_passcode:S.pc, p_jenis:'formatif' }) ]);
+  G.daftar = list; G.ujian = ul;
   const jm = $('jmlMurid'), tb = $('daftarMurid'); if (!jm || !tb) return;
   jm.textContent = list.length + ' murid' + (G.siswaK ? ' (Kelas '+G.siswaK+')' : ' (semua kelas)');
-  tb.innerHTML = list.length ? list.map(s=>`<tr><td class="pinbox">${esc(s.kode)}</td><td>${esc(s.nama)}</td><td>${s.kelas}</td>
-      <td style="white-space:nowrap"><button class="btn" style="padding:5px 10px;font-size:.7rem" onclick="resetPin('${esc(s.kode)}')">Atur ulang PIN</button>
-      <button class="btn" style="padding:5px 10px;font-size:.7rem;color:var(--bad)" onclick="hapusMurid('${esc(s.kode)}','${esc(s.nama).replace(/'/g,'')}')">Hapus</button></td></tr>`).join('') : '<tr><td colspan="4" class="empty">Belum ada murid.</td></tr>';
+  const tanpa = list.filter(s=>!s.pin).length; $('bPinLama').style.display = tanpa ? '' : 'none';
+  const aktif = ul.filter(u=>u.status!=='tutup' && (!G.siswaK || u.kelas==G.siswaK));
+  $('ruangInfo').innerHTML = aktif.length ? `<div class="card" style="margin-bottom:14px"><div style="font-size:.74rem;font-weight:800;color:var(--mut);margin-bottom:8px">KODE RUANG ASESMEN${G.siswaK?' KELAS '+G.siswaK:''}</div><div style="display:flex;gap:10px;flex-wrap:wrap">${aktif.map(u=>`<div class="ruangchip"><span class="pinbox" style="font-size:1.15rem;color:var(--p)">${u.kode}</span><span>Kelas ${u.kelas} · ${esc(u.mapel)} · ${esc(u.judul)} · ${u.status==='buka'?'Dibuka':'Draft'}</span></div>`).join('')}</div></div>`
+    : `<div class="sub" style="margin-bottom:12px">Belum ada sesi aktif${G.siswaK?' untuk kelas '+G.siswaK:''}. Buat sesi di tab Sesi Ujian, kode ruangnya akan tampil di sini.</div>`;
+  tb.innerHTML = list.length ? list.map(s=>`<tr><td class="pinbox">${esc(s.kode)}</td><td class="pinbox">${s.pin?esc(s.pin):'<span style="color:var(--mut);font-weight:400;letter-spacing:0">belum ada</span>'}${s.terkunci?' <span title="Terkunci sementara karena salah PIN">🔒</span>':''}</td><td>${esc(s.nama)}</td><td>${s.kelas}</td>
+      <td style="white-space:nowrap"><button class="btn" style="padding:5px 10px;font-size:.7rem" onclick="resetPin('${esc(s.kode)}')">${s.pin?'Atur ulang PIN':'Buat PIN'}</button>
+      <button class="btn" style="padding:5px 10px;font-size:.7rem;color:var(--bad)" onclick="hapusMurid('${esc(s.kode)}','${esc(s.nama).replace(/'/g,'')}')">Hapus</button></td></tr>`).join('') : '<tr><td colspan="5" class="empty">Belum ada murid.</td></tr>';
+}
+async function pinLama(){
+  if (!confirm('Buatkan PIN baru untuk murid yang PIN-nya belum tampil'+(G.siswaK?' di kelas '+G.siswaK:'')+'? PIN lama mereka tidak berlaku lagi.')) return;
+  try { const r = await rpc('as_guru_siswa_pin_lama', { p_passcode:S.pc, p_kelas: G.siswaK?+G.siswaK:null }); toast(r.jumlah+' PIN dibuat'); await muatDaftar(); } catch(e){ toast(e.message, true); }
+}
+function tabelAkses(list, ruang){
+  return `<div class="tw"><table><thead><tr><th>Nama</th><th>Kode Siswa</th><th>PIN</th></tr></thead><tbody>${list.map(s=>`<tr><td>${esc(s.nama)}</td><td class="pinbox">${esc(s.kode)}</td><td class="pinbox">${s.pin?esc(s.pin):'-'}</td></tr>`).join('')||'<tr><td colspan="3" class="empty">Belum ada murid di kelas ini.</td></tr>'}</tbody></table></div>`;
+}
+async function bukaAkses(kode, kelas, btn){
+  const box = $('ak_'+kode); if (!box) return;
+  if (box.style.display !== 'none') { box.style.display='none'; return; }
+  box.style.display='block'; box.innerHTML='<div class="sub">Memuat…</div>';
+  try { const list = await rpc('as_guru_siswa_list', { p_passcode:S.pc, p_kelas:kelas });
+    box.innerHTML = `<div class="sub" style="margin:6px 0">Murid masuk di <b>asesmen.ciptaguru.com</b> → Saya Murid, isi kode siswa, PIN, dan kode ruang <b class="pinbox">${kode}</b>.</div>`+tabelAkses(list, kode)+`<button class="btn noprint" style="margin-top:8px" onclick="cetakKelas('${kode}',${kelas})">🖨 Cetak</button>`;
+  } catch(e){ box.innerHTML=''; toast(e.message, true); }
+}
+function cetakHtml(html){
+  const b = document.body; let area = document.getElementById('areaCetak');
+  if (!area) { area = document.createElement('div'); area.id = 'areaCetak'; b.appendChild(area); }
+  area.innerHTML = html; b.classList.add('cetak-kartu');
+  const selesai = () => { b.classList.remove('cetak-kartu'); area.innerHTML = ''; window.removeEventListener('afterprint', selesai); };
+  window.addEventListener('afterprint', selesai);
+  window.print();
+}
+async function cetakKelas(kode, kelas){
+  const u = (await rpc('as_guru_ujian_list', { p_passcode:S.pc, p_jenis:'formatif' })).find(x=>x.kode===kode);
+  const list = await rpc('as_guru_siswa_list', { p_passcode:S.pc, p_kelas:kelas });
+  cetakHtml(`<div class="kartu"><div class="kartu-judul" style="display:block">Daftar Akses Asesmen · Kelas ${kelas}${u?' · '+esc(u.mapel)+' · '+esc(u.judul):''}</div><p>Alamat: asesmen.ciptaguru.com → Saya Murid · Kode ruang: <b>${kode}</b></p>${tabelAkses(list)}</div>`);
+}
+function cetakAkses(){
+  const list = G.daftar||[]; const ul = (G.ujian||[]).filter(u=>u.status!=='tutup' && (!G.siswaK || u.kelas==G.siswaK));
+  cetakHtml(`<div class="kartu"><div class="kartu-judul" style="display:block">Daftar Akses Asesmen${G.siswaK?' · Kelas '+G.siswaK:''}</div><p>Alamat: asesmen.ciptaguru.com → Saya Murid</p>${ul.length?'<p>Kode ruang: '+ul.map(u=>'<b>'+u.kode+'</b> (Kelas '+u.kelas+', '+esc(u.mapel)+')').join(' · ')+'</p>':''}<table><thead><tr><th>Kelas</th><th>Nama</th><th>Kode Siswa</th><th>PIN</th></tr></thead><tbody>${list.map(s=>`<tr><td>${s.kelas}</td><td>${esc(s.nama)}</td><td class="pinbox">${esc(s.kode)}</td><td class="pinbox">${s.pin?esc(s.pin):'-'}</td></tr>`).join('')}</tbody></table></div>`);
 }
 async function impor(){
   const nama = ($('mN').value || '').replace(/\s+/g,' ').trim(); const kelas = +$('mK').value;
@@ -573,7 +636,7 @@ async function impor(){
   const btn = $('btnTambah'); btn.disabled = true;
   try { const r = await rpc('as_guru_siswa_impor', { p_passcode:S.pc, p_data: [{ nama, kelas }] });
     G.kelasTambah = kelas;
-    $('hasilImpor').innerHTML = kartuLogin(r, 'Murid berhasil ditambahkan'); $('mN').value=''; $('mN').focus();
+    if ($('hasilImpor')) { $('hasilImpor').innerHTML = kartuLogin(r, 'Murid berhasil ditambahkan'); $('mN').value=''; $('mN').focus(); }
     await muatDaftar();
   } catch(e){ toast(e.message, true); }
   btn.disabled = false;
@@ -591,10 +654,10 @@ function kartuLogin(r, judul){
   return `<div class="card kartu" style="margin-bottom:18px;border-color:var(--ok)"><div class="sh" style="margin-bottom:8px"><h3 style="font-size:1rem">✅ ${judul}</h3><button class="btn pri noprint" onclick="cetakKartu()">🖨 Cetak Kartu Ini</button></div>
    <div class="kartu-judul">Kartu Login Asesmen · Cipta Guru</div>
    <div class="tw"><table><thead><tr><th>Nama</th><th>Kelas</th><th>Kode Siswa</th><th>PIN</th></tr></thead><tbody>${r.map(x=>`<tr><td>${esc(x.nama)}</td><td>${x.kelas||''}</td><td class="pinbox">${esc(x.kode)}</td><td class="pinbox">${esc(x.pin)}</td></tr>`).join('')}</tbody></table></div>
-   <div class="sub" style="margin-top:8px">Alamat ujian: <b>asesmen.ciptaguru.com</b> → pilih <b>Saya Murid</b>, lalu masukkan kode siswa dan PIN.</div>
-   <div class="sub noprint" style="margin-top:6px">Catat PIN sekarang. PIN tidak bisa dilihat lagi nanti (hanya bisa diatur ulang).</div></div>`;
+   <div class="sub" style="margin-top:8px">Alamat ujian: <b>asesmen.ciptaguru.com</b> → pilih <b>Saya Murid</b>, lalu isi kode siswa, PIN, dan kode ruang asesmen dari gurumu.</div>
+   <div class="sub noprint" style="margin-top:6px">PIN juga selalu bisa dilihat di tabel Daftar Murid di bawah.</div></div>`;
 }
-async function resetPin(kode){ try { const r = await rpc('as_guru_siswa_pin', { p_passcode:S.pc, p_kode:kode }); $('hasilImpor').innerHTML = kartuLogin([r], 'PIN baru dibuat'); window.scrollTo(0,0); } catch(e){ toast(e.message, true); } }
+async function resetPin(kode){ try { const r = await rpc('as_guru_siswa_pin', { p_passcode:S.pc, p_kode:kode }); if ($('hasilImpor')) { $('hasilImpor').innerHTML = kartuLogin([r], 'PIN baru dibuat'); window.scrollTo(0,0); await muatDaftar(); } } catch(e){ toast(e.message, true); } }
 async function hapusMurid(kode, nama){ if (!confirm('Hapus murid '+nama+'? Nilainya ikut terhapus.')) return; try { await rpc('as_guru_siswa_hapus', { p_passcode:S.pc, p_kode:kode }); toast('Murid dihapus'); muatDaftar(); } catch(e){ toast(e.message, true); } }
 
 async function gHasil(body){
