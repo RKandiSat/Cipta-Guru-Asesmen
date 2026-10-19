@@ -161,7 +161,7 @@ details.dt summary::-webkit-details-marker { display:none; }
 .dtb .kn { color:#065F46; font-weight:700; }
 .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:120; background:#0F172A; color:#fff; padding:11px 18px; border-radius:12px; font-size:.82rem; max-width:90vw; box-shadow:0 10px 30px rgba(0,0,0,.25); }
 .toast.err { background:#B91C1C; }
-.save { font-size:.68rem; color:var(--mut); } .save.bad { color:var(--bad); font-weight:700; }
+.save { font-size:.68rem; color:var(--mut); } .save.ok { color:var(--ok,#127a43); font-weight:700; } .save.bad { color:var(--bad); font-weight:700; }
 .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; } .row3 { display:grid; grid-template-columns:2fr 1fr 1fr; gap:10px; }
 .pinbox { font-family:monospace; font-weight:800; letter-spacing:2px; }
 .pw { position:relative; } .pw .i { padding-right:44px; }
@@ -172,6 +172,17 @@ details.dt summary::-webkit-details-marker { display:none; }
 .ruangchip { display:flex; flex-direction:column; gap:2px; padding:9px 13px; border:1.5px solid var(--line); border-radius:12px; background:#F8F7FF; font-size:.72rem; color:var(--mut); }
 .spin { text-align:center; padding:50px 10px; color:var(--mut); font-size:.85rem; }
 .numin { width:80px; padding:7px 9px; border:1.5px solid var(--line); border-radius:9px; font-family:inherit; font-size:.85rem; }
+.rubk { background:#FFFBEA; border:1px solid #F0DC8A; border-radius:12px; padding:12px 14px; margin-top:8px; }
+.rh2 { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+.krit { border-top:1px dashed #E6D68A; padding:9px 0; }
+.krit:first-of-type { border-top:0; }
+.kd { font-size:.78rem; color:#5b6477; line-height:1.5; margin:3px 0 6px; }
+.kd .ac { color:#8a5a00; font-weight:600; }
+.pts { display:flex; gap:6px; flex-wrap:wrap; }
+.pt { min-width:44px; padding:7px 12px; border:2px solid var(--line); background:#fff; border-radius:9px; font-weight:700; cursor:pointer; font-family:inherit; }
+.pt.on { border-color:#2457d6; background:#E9EEFB; color:#2457d6; }
+.kc { font-size:.76rem; color:#667089; margin:8px 0 0 16px; padding:0; line-height:1.5; }
+.ktot { margin-top:10px; padding-top:10px; border-top:1px solid #E6D68A; font-size:.9rem; }
 .jwb { background:#F8FAFC; border-radius:10px; padding:10px 12px; font-size:.84rem; line-height:1.55; white-space:pre-wrap; margin:6px 0; }
 @media (max-width:760px){ .row2,.row3 { grid-template-columns:1fr; } }
 #mN::placeholder { color:#9AA3AF; font-weight:300; opacity:1; }
@@ -676,22 +687,61 @@ async function gHasil(body){
     <td>${x.status!=='selesai'?'':x.menunggu?`<span class="pill p-mid">${x.menunggu} perlu dinilai</span>`:'<span class="pill p-ok">sudah</span>'}</td>
     <td style="white-space:nowrap">${x.status==='selesai'?`<button class="btn" style="padding:5px 10px;font-size:.7rem" onclick="nilaiEsai('${x.percobaan}','${esc(x.nama).replace(/'/g,'')}')">Nilai Esai</button> <button class="btn" style="padding:5px 10px;font-size:.7rem" onclick="go('/guru-rapor/${x.percobaan}')">Rapor</button>`:''}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">Belum ada murid di kelas ini. Tambahkan di tab Daftar Murid.</td></tr>'}</tbody></table></div></div><div id="esaiPanel"></div>`;
 }
+const RBG = {"EJA": ["Ejaan dan tanda baca benar: huruf kapital di awal kalimat dan nama, tanda baca di akhir kalimat, kata tertulis benar (kesalahan satu atau dua kata masih boleh).", "Setengah poin bila ada beberapa kesalahan tetapi masih terbaca jelas."], "ALS": ["Alasan masuk akal dan nyambung dengan pertanyaan. Boleh berbeda dari kunci selama benar.", "Setengah poin bila alasan benar tetapi kurang jelas atau terlalu singkat."], "URT": ["Urutan peristiwa atau langkah logis dari awal sampai akhir.", "Setengah poin bila sebagian urutan terbalik."], "KAL": ["Kalimat lengkap (ada subjek dan predikat), mudah dipahami, dan sesuai perintah soal.", "Setengah poin bila kalimat kurang lengkap tetapi maksudnya jelas."], "HAS": ["Hasil akhir tepat (lihat kunci), lengkap dengan satuan bila diminta.", "Hasil salah = 0 untuk kriteria ini. Salah hitung kecil di awal tidak menghilangkan poin langkah di kriteria lain."], "CRA": ["Cara atau operasi yang dipakai benar sesuai kunci. Salah hitung kecil tidak menghilangkan poin ini.", "Setengah poin bila cara benar sebagian."], "MAK": ["Inti maknanya benar, boleh dengan kata-kata sendiri (tidak harus sama dengan kunci).", "Setengah poin bila maknanya benar sebagian atau kurang lengkap."], "DAF": ["Disebutkan dengan benar dan sesuai pertanyaan. Jawaban yang berbeda dari contoh kunci tetap diterima jika benar.", "Setengah poin bila jawaban mendekati benar tetapi belum tepat."], "UMU": ["Sesuai kunci atau benar secara makna.", "Setengah poin bila benar sebagian."]};
+const RBC = {"O": "Kunci hanya contoh. Terima jawaban lain yang benar dan sesuai pertanyaan.", "T": "Jawaban harus sama maknanya dengan kunci; kata-katanya boleh berbeda. Salah tulis kecil tetap diterima, kecuali yang dinilai memang ejaan.", "M": "Bila langkah benar tetapi hasil salah karena salah hitung, tetap beri poin untuk langkah yang benar.", "N": "Beri 0 untuk jawaban kosong, menyalin soal, atau tidak berhubungan dengan pertanyaan."};
+const RB = { data:[], perc:'', skor:{} };
+function rbTotal(i){ const e=RB.data[i]; if(!e.rub) return null; const a=RB.skor[i]||[]; return a.reduce((x,y)=>x+(y||0),0); }
+function rbKlik(i,j,v){ RB.skor[i][j]=v; const e=RB.data[i];
+  document.querySelectorAll(`#kr${i}_${j} .pt`).forEach(b=>b.classList.toggle('on', +b.dataset.v===v));
+  $('tot'+i).textContent = rbTotal(i); $('esI'+i).textContent='belum disimpan'; $('esI'+i).className='save'; }
+function rbSemua(i,penuh){ const e=RB.data[i]; e.rub.k.forEach((c,j)=>rbKlik(i,j,penuh?c.p:0)); }
+function rbKartu(e,i){
+  const ada = Array.isArray(e.rinci) && e.rinci.length===e.rub.k.length;
+  RB.skor[i] = e.rub.k.map((c,j)=> ada ? +e.rinci[j]||0 : 0);
+  const kr = e.rub.k.map((c,j)=>{
+    const g = RBG[c.g]||RBG.UMU; const bt=[]; for(let v=0; v<=c.p; v++) bt.push(v);
+    const mid = c.p>=2 ? (c.s||g[1]) : '';
+    return `<div class="krit" id="kr${i}_${j}"><div class="kh"><b>${esc(c.n)}</b> <span class="sub">(maks ${c.p})</span></div>
+      <div class="kd">${esc(g[0])}${c.a?` <span class="ac">Acuan: ${esc(c.a)}</span>`:''}${mid?`<br><span class="sub">${esc(mid)}</span>`:''}</div>
+      <div class="pts">${bt.map(v=>`<button type="button" class="pt ${ada&&RB.skor[i][j]===v?'on':''}" data-v="${v}" onclick="rbKlik(${i},${j},${v})">${v}</button>`).join('')}</div></div>`; }).join('');
+  const cat = [...(e.rub.c||''), 'N'].map(k=>RBC[k]).filter(Boolean).map(t=>`<li>${esc(t)}</li>`).join('');
+  return `<div class="rubk"><div class="rh2"><b>📋 Rubrik penilaian</b><span>
+      <button type="button" class="btn" style="padding:4px 10px;font-size:.7rem" onclick="rbSemua(${i},true)">Semua penuh</button>
+      <button type="button" class="btn" style="padding:4px 10px;font-size:.7rem" onclick="rbSemua(${i},false)">Semua nol</button></span></div>
+    ${kr}<ul class="kc">${cat}</ul>
+    <div class="ktot">Skor: <b id="tot${i}">${rbTotal(i)}</b> dari ${e.maks}
+      <button class="btn pri" style="padding:7px 14px;margin-left:10px" onclick="simpanEsai(${i})">Simpan</button> <span class="save" id="esI${i}">${e.skor==null?'belum dinilai':'tersimpan ✓'}</span></div></div>`;
+}
+function rbKartuLama(e,i){
+  return `<div class="sub">Rubrik: ${esc(e.rubrik)}</div>
+   <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label class="sub">Skor (maks ${e.maks}):</label>
+     <input class="numin" id="es${i}" type="number" min="0" max="${e.maks}" step="0.5" value="${e.skor==null?'':e.skor}">
+     <button class="btn pri" style="padding:7px 14px" onclick="simpanEsai(${i})">Simpan</button><span class="save" id="esI${i}">${e.skor==null?'belum dinilai':'tersimpan'}</span></div>`;
+}
 async function nilaiEsai(perc, nama){
   const P = $('esaiPanel'); loading(P);
   const es = await rpc('as_guru_esai', { p_passcode:S.pc, p_perc:perc });
-  P.innerHTML = `<div class="card" style="margin-top:18px"><div class="sh" style="margin-bottom:8px"><h3 style="font-size:1rem">Nilai Esai: ${esc(nama)}</h3><button class="btn" onclick="$('esaiPanel').innerHTML=''">Tutup</button></div>
+  RB.data = es; RB.perc = perc; RB.skor = {};
+  const sudah = es.filter(e=>e.skor!=null).length;
+  P.innerHTML = `<div class="card" style="margin-top:18px"><div class="sh" style="margin-bottom:8px"><h3 style="font-size:1rem">Nilai Esai: ${esc(nama)} <span class="pill ${sudah===es.length?'p-ok':'p-mid'}" id="esProg">${sudah}/${es.length} sudah dinilai</span></h3><button class="btn" onclick="$('esaiPanel').innerHTML=''">Tutup</button></div>
+   <div class="sub" style="margin-bottom:6px">Cukup klik poin tiap kriteria. Skor total terhitung otomatis. Klik Simpan di tiap soal.</div>
    ${es.map((e,i)=>`<div style="border-top:1px solid var(--line);padding:14px 0">
      <div style="font-size:.88rem;line-height:1.55"><span class="ty">${e.tipe}</span> <b>${esc(e.tp)}</b> — ${esc(e.teks)}</div>
      <div class="sub" style="margin-top:8px">Jawaban murid:</div><div class="jwb">${e.jawaban?esc(e.jawaban):'(tidak dijawab)'}</div>
-     <div class="sub">Jawaban ideal: ${esc(e.kunci)}</div><div class="sub">Rubrik: ${esc(e.rubrik)}</div>
-     <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label class="sub">Skor (maks ${e.maks}):</label>
-       <input class="numin" id="es${i}" type="number" min="0" max="${e.maks}" step="0.5" value="${e.skor==null?'':e.skor}">
-       <button class="btn pri" style="padding:7px 14px" onclick="simpanEsai('${perc}',${e.soal},${i},${e.maks})">Simpan</button><span class="save" id="esI${i}">${e.skor==null?'belum dinilai':'tersimpan'}</span></div></div>`).join('')}</div>`;
+     <div class="sub" style="margin-bottom:6px">Jawaban ideal: ${esc(e.kunci)}</div>
+     ${e.rub && e.rub.k ? rbKartu(e,i) : rbKartuLama(e,i)}</div>`).join('')}</div>`;
   P.scrollIntoView({ behavior:'smooth' });
 }
-async function simpanEsai(perc, soal, i, maks){
-  const v = parseFloat($('es'+i).value); if (isNaN(v) || v<0 || v>maks) { toast('Skor harus antara 0 dan '+maks, true); return; }
-  try { await rpc('as_guru_esai_nilai', { p_passcode:S.pc, p_perc:perc, p_soal:soal, p_skor:v }); $('esI'+i).textContent='tersimpan ✓'; } catch(e){ toast(e.message, true); }
+async function simpanEsai(i){
+  const e = RB.data[i]; if (!e) return;
+  let v, rinci = null;
+  if (e.rub && e.rub.k) { v = rbTotal(i); rinci = RB.skor[i]; }
+  else { v = parseFloat($('es'+i).value); if (isNaN(v) || v<0 || v>e.maks) { toast('Skor harus antara 0 dan '+e.maks, true); return; } }
+  try {
+    await rpc('as_guru_esai_nilai', { p_passcode:S.pc, p_perc:RB.perc, p_soal:e.soal, p_skor:v, p_rinci:rinci });
+    e.skor = v; const el=$('esI'+i); if (el) { el.textContent='tersimpan ✓'; el.className='save ok'; }
+    const pr=$('esProg'); if (pr) { const n=RB.data.filter(x=>x.skor!=null).length; pr.textContent=n+'/'+RB.data.length+' sudah dinilai'; pr.className='pill '+(n===RB.data.length?'p-ok':'p-mid'); }
+  } catch(err){ toast(err.message, true); }
 }
 
 render();
