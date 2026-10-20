@@ -532,7 +532,7 @@ const mapelList = () => [...new Set(G.combos.map(c=>c.mapel))];
 const kelasDari = m => G.combos.filter(c=>c.mapel===m).map(c=>c.kelas);
 
 async function gBank(body){
-  const kls = G.fM ? kelasDari(G.fM) : [1,2,3,4,5,6];
+  const kls = G.fM ? kelasDari(G.fM) : [1,2,3,4,5,6,7,8,9];
   body.innerHTML = `<div class="filters">
     <select class="i" onchange="G.fM=this.value;G.fK='';G.bank=null;render()"><option value="">Pilih Mata Pelajaran</option>${mapelList().map(m=>`<option ${G.fM===m?'selected':''}>${esc(m)}</option>`).join('')}</select>
     <select class="i" onchange="G.fK=this.value;G.bank=null;render()"><option value="">Semua Kelas</option>${kls.map(k=>`<option value="${k}" ${G.fK==k?'selected':''}>Kelas ${k}</option>`).join('')}</select>
@@ -583,11 +583,11 @@ async function hapusSesi(kode, judul, selesai){
 async function ubahSesi(kode, st){ try { await rpc('as_guru_ujian_status', { p_passcode:S.pc, p_kode:kode, p_status:st }); toast(st==='buka'?'Sesi dibuka':'Sesi ditutup'); render(); } catch(e){ toast(e.message, true); } }
 
 async function gMurid(body){
-  const kls = '<option value="">Semua Kelas</option>' + [1,2,3,4,5,6].map(k=>`<option value="${k}" ${G.siswaK==k?'selected':''}>Kelas ${k}</option>`).join('');
+  const kls = '<option value="">Semua Kelas</option>' + [1,2,3,4,5,6,7,8,9].map(k=>`<option value="${k}" ${G.siswaK==k?'selected':''}>Kelas ${k}</option>`).join('');
   body.innerHTML = `
   <div class="card" style="margin-bottom:18px"><h3 style="font-size:1rem;margin-bottom:6px">Tambah Murid</h3>
     <div class="sub">Pilih kelas, ketik satu nama murid, lalu tekan Tambahkan. Kode siswa dan PIN dibuatkan otomatis. PIN tersimpan dan selalu bisa dilihat di tabel di bawah.</div>
-    <div class="row2" style="margin-top:6px"><div><label class="f">Kelas</label><select class="i" id="mK">${[1,2,3,4,5,6].map(k=>`<option value="${k}" ${G.kelasTambah==k?'selected':''}>Kelas ${k}</option>`).join('')}</select></div><div></div></div>
+    <div class="row2" style="margin-top:6px"><div><label class="f">Kelas</label><select class="i" id="mK">${[1,2,3,4,5,6,7,8,9].map(k=>`<option value="${k}" ${G.kelasTambah==k?'selected':''}>Kelas ${k}</option>`).join('')}</select></div><div></div></div>
     <label class="f">Nama Murid</label><input class="i" id="mN" type="text" maxlength="80" autocomplete="off" placeholder="ketik nama murid di sini" onkeydown="if(event.key==='Enter'){event.preventDefault();impor();}">
     <button class="btn pri" style="margin-top:12px" id="btnTambah" onclick="impor()">+ Tambahkan</button></div>
   <div id="hasilImpor"></div>
