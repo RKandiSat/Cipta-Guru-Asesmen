@@ -274,7 +274,11 @@ function keluar(diam){
   S.peran=null; S.token=null; S.pc=null; S.nama=''; S.ujianKode='';
   if (diam !== true) go('/'); else { go('/murid-login'); render(); }
 }
-function ambilJenisDariUrl(){ const j = new URLSearchParams(location.search).get('jenis'); if (j && JENIS[j]) S.jenis = j; }
+let jenisUrlDipakai = false;
+// Hanya dibaca sekali saat halaman pertama dibuka. Sebelumnya fungsi ini jalan di
+// setiap gambar ulang, sehingga ?jenis=... selalu memaksa tab balik ke nilai di URL
+// dan klik tab terasa tidak bereaksi.
+function ambilJenisDariUrl(){ if (jenisUrlDipakai) return; jenisUrlDipakai = true; const j = new URLSearchParams(location.search).get('jenis'); if (j && JENIS[j]) S.jenis = j; }
 
 async function render(){
   const path = location.hash.replace('#','') || '/';
@@ -508,18 +512,25 @@ async function rapor(app, id, guru){
 }
 
 /* ════════ GURU ════════ */
+const SEMUA_KELAS = [1,2,3,4,5,6,7,8,9,10,11,12];
+// Pindah jenis asesmen: kosongkan cache combos + filter, sebab tiap jenis punya
+// daftar mapel/kelas sendiri (Akhir Jenjang hanya kelas 6, 9, dan 12).
+// URL ikut disegarkan supaya tab terpilih tetap bertahan saat halaman dimuat ulang.
+function gantiJenis(j){
+  S.jenis = j; G.combos = []; G.fM = ''; G.fK = ''; G.bank = null;
+  try { const u = new URL(location.href); u.searchParams.set('jenis', j); history.replaceState(null, '', u); } catch(e) {}
+  render();
+}
 async function guruHome(app){
   ambilJenisDariUrl();
   const J = JENIS[S.jenis];
   const gTabs = { bank:'Bank Soal', sesi:'Sesi Ujian', murid:'Daftar Murid', hasil:'Hasil &amp; Rapor' };
   app.innerHTML = `
   <div class="sh"><div><h2>${J.ic} ${J.n}</h2><div class="sub">${J.d}</div></div><a class="btn" href="https://ciptaguru.com" style="text-decoration:none">← ciptaguru.com</a></div>
-  <div class="tabs">${Object.entries(JENIS).map(([k,v])=>`<button class="tab ${S.jenis===k?'on':''}" onclick="S.jenis='${k}';render()">${v.ic} ${v.n.replace('Asesmen ','')}</button>`).join('')}</div>
-  ${S.jenis==='formatif' ? `<div class="sub-tabs">${Object.entries(gTabs).map(([k,v])=>`<button class="stab ${S.gTab===k?'on':''}" onclick="S.gTab='${k}';render()">${v}</button>`).join('')}</div><div id="gBody"></div>`
-    : `<div class="empty card"><div style="font-size:2rem">🚧</div><b>${J.n}</b><br>Soal untuk jenis ini sedang disiapkan. Segera hadir.</div>`}`;
-  if (S.jenis !== 'formatif') return;
+  <div class="tabs">${Object.entries(JENIS).map(([k,v])=>`<button class="tab ${S.jenis===k?'on':''}" onclick="gantiJenis('${k}')">${v.ic} ${v.n.replace('Asesmen ','')}</button>`).join('')}</div>
+  <div class="sub-tabs">${Object.entries(gTabs).map(([k,v])=>`<button class="stab ${S.gTab===k?'on':''}" onclick="S.gTab='${k}';render()">${v}</button>`).join('')}</div><div id="gBody"></div>`;
   const body = $('gBody'); loading(body);
-  if (!G.combos.length) G.combos = await rpc('as_guru_mapel', { p_passcode:S.pc, p_jenis:'formatif' });
+  if (!G.combos.length) G.combos = await rpc('as_guru_mapel', { p_passcode:S.pc, p_jenis:S.jenis });
   const tabIni = S.gTab;
   try {
     if (tabIni==='bank') await gBank(body);
@@ -532,7 +543,7 @@ const mapelList = () => [...new Set(G.combos.map(c=>c.mapel))];
 const kelasDari = m => G.combos.filter(c=>c.mapel===m).map(c=>c.kelas);
 
 async function gBank(body){
-  const kls = G.fM ? kelasDari(G.fM) : [1,2,3,4,5,6,7,8,9];
+  const kls = G.fM ? kelasDari(G.fM) : SEMUA_KELAS;
   body.innerHTML = `<div class="filters">
     <select class="i" onchange="G.fM=this.value;G.fK='';G.bank=null;render()"><option value="">Pilih Mata Pelajaran</option>${mapelList().map(m=>`<option ${G.fM===m?'selected':''}>${esc(m)}</option>`).join('')}</select>
     <select class="i" onchange="G.fK=this.value;G.bank=null;render()"><option value="">Semua Kelas</option>${kls.map(k=>`<option value="${k}" ${G.fK==k?'selected':''}>Kelas ${k}</option>`).join('')}</select>
@@ -540,7 +551,7 @@ async function gBank(body){
   const L = $('bankList');
   if (!G.fM) { L.innerHTML = '<div class="empty card">Pilih mata pelajaran dulu untuk melihat soal.</div>'; return; }
   loading(L);
-  const list = await rpc('as_guru_soal', { p_passcode:S.pc, p_jenis:'formatif', p_mapel:G.fM, p_kelas: G.fK?+G.fK:null, p_tipe:G.fT||null });
+  const list = await rpc('as_guru_soal', { p_passcode:S.pc, p_jenis:S.jenis, p_mapel:G.fM, p_kelas: G.fK?+G.fK:null, p_tipe:G.fT||null });
   L.innerHTML = `<div class="sub" style="margin-bottom:10px">${list.length} soal. Kunci dan pembahasan hanya terlihat oleh guru.</div>` +
     (list.length ? list.map(b => {
       let op = ''; if (b.opsi) op = '<ol type="A" style="margin:6px 0 8px 18px">' + b.opsi.map(o=>`<li>${esc(o)}</li>`).join('') + '</ol>';
@@ -550,7 +561,7 @@ async function gBank(body){
 }
 
 async function gSesi(body){
-  const ul = await rpc('as_guru_ujian_list', { p_passcode:S.pc, p_jenis:'formatif' });
+  const ul = await rpc('as_guru_ujian_list', { p_passcode:S.pc, p_jenis:S.jenis });
   const opsiM = mapelList().map(m=>`<option>${esc(m)}</option>`).join('');
   body.innerHTML = `
   <div class="card" style="margin-bottom:18px"><h3 style="font-size:1rem;margin-bottom:6px">Buat Sesi Ujian</h3>
@@ -558,9 +569,9 @@ async function gSesi(body){
     <div class="row3" style="margin-top:6px"><div><label class="f">Mata Pelajaran</label><select class="i" id="sM" onchange="isiKelasSesi()">${opsiM}</select></div>
       <div><label class="f">Kelas</label><select class="i" id="sK"></select></div>
       <div><label class="f">Durasi (menit)</label><input class="i" id="sD" type="number" value="60" min="5" max="240"></div></div>
-    <label class="f">Judul Sesi</label><input class="i" id="sJ" placeholder="contoh: Formatif Bab 1 Bilangan">
+    <label class="f">Judul Sesi</label><input class="i" id="sJ" placeholder="contoh: ${JENIS[S.jenis].n.replace('Asesmen ','')} Bab 1 Bilangan">
     <button class="btn pri" style="margin-top:14px" onclick="buatSesi()">+ Buat Sesi</button></div>
-  ${ul.length ? '<div class="grid">'+ul.map(u=>`<div class="ex"><span class="tag t-f">Formatif</span><h3>${esc(u.mapel)} K${u.kelas}: ${esc(u.judul)}</h3>
+  ${ul.length ? '<div class="grid">'+ul.map(u=>`<div class="ex"><span class="tag ${TAGCLS[S.jenis]||'t-f'}">${JENIS[S.jenis].n.replace('Asesmen ','')}</span><h3>${esc(u.mapel)} K${u.kelas}: ${esc(u.judul)}</h3>
     <div style="font-size:.7rem;color:var(--mut)">Kode sesi untuk murid</div><div class="disp" style="font-size:1.7rem;letter-spacing:3px;color:var(--p)">${u.kode}</div>
     <div class="meta"><span>⏱ ${u.durasi} menit</span><span>❓ ${u.jumlah_soal} soal</span><span>👥 ${u.murid} murid</span><span>✍ ${u.selesai}/${u.mulai} selesai</span></div><div class="akses" id="ak_${u.kode}" style="display:none"></div>
     <span class="stat ${u.status==='buka'?'st-open':u.status==='tutup'?'st-done':'st-soon'}">${u.status==='buka'?'Dibuka':u.status==='tutup'?'Ditutup':'Draft'}</span>
@@ -572,7 +583,7 @@ async function gSesi(body){
 }
 function isiKelasSesi(){ const m=$('sM').value; $('sK').innerHTML = kelasDari(m).map(k=>`<option value="${k}">Kelas ${k}</option>`).join(''); }
 async function buatSesi(){
-  try { const r = await rpc('as_guru_ujian_buat', { p_passcode:S.pc, p_jenis:'formatif', p_mapel:$('sM').value, p_kelas:+$('sK').value, p_judul:$('sJ').value, p_durasi:+$('sD').value||60 });
+  try { const r = await rpc('as_guru_ujian_buat', { p_passcode:S.pc, p_jenis:S.jenis, p_mapel:$('sM').value, p_kelas:+$('sK').value, p_judul:$('sJ').value, p_durasi:+$('sD').value||60 });
     toast('Sesi dibuat. Kodenya: '+r.kode); render(); } catch(e){ toast(e.message, true); }
 }
 async function hapusSesi(kode, judul, selesai){
@@ -583,11 +594,11 @@ async function hapusSesi(kode, judul, selesai){
 async function ubahSesi(kode, st){ try { await rpc('as_guru_ujian_status', { p_passcode:S.pc, p_kode:kode, p_status:st }); toast(st==='buka'?'Sesi dibuka':'Sesi ditutup'); render(); } catch(e){ toast(e.message, true); } }
 
 async function gMurid(body){
-  const kls = '<option value="">Semua Kelas</option>' + [1,2,3,4,5,6,7,8,9].map(k=>`<option value="${k}" ${G.siswaK==k?'selected':''}>Kelas ${k}</option>`).join('');
+  const kls = '<option value="">Semua Kelas</option>' + SEMUA_KELAS.map(k=>`<option value="${k}" ${G.siswaK==k?'selected':''}>Kelas ${k}</option>`).join('');
   body.innerHTML = `
   <div class="card" style="margin-bottom:18px"><h3 style="font-size:1rem;margin-bottom:6px">Tambah Murid</h3>
     <div class="sub">Pilih kelas, ketik satu nama murid, lalu tekan Tambahkan. Kode siswa dan PIN dibuatkan otomatis. PIN tersimpan dan selalu bisa dilihat di tabel di bawah.</div>
-    <div class="row2" style="margin-top:6px"><div><label class="f">Kelas</label><select class="i" id="mK">${[1,2,3,4,5,6,7,8,9].map(k=>`<option value="${k}" ${G.kelasTambah==k?'selected':''}>Kelas ${k}</option>`).join('')}</select></div><div></div></div>
+    <div class="row2" style="margin-top:6px"><div><label class="f">Kelas</label><select class="i" id="mK">${SEMUA_KELAS.map(k=>`<option value="${k}" ${G.kelasTambah==k?'selected':''}>Kelas ${k}</option>`).join('')}</select></div><div></div></div>
     <label class="f">Nama Murid</label><input class="i" id="mN" type="text" maxlength="80" autocomplete="off" placeholder="ketik nama murid di sini" onkeydown="if(event.key==='Enter'){event.preventDefault();impor();}">
     <button class="btn pri" style="margin-top:12px" id="btnTambah" onclick="impor()">+ Tambahkan</button></div>
   <div id="hasilImpor"></div>
@@ -597,7 +608,7 @@ async function gMurid(body){
   await muatDaftar();
 }
 async function muatDaftar(){
-  const [list, ul] = await Promise.all([ rpc('as_guru_siswa_list', { p_passcode:S.pc, p_kelas: G.siswaK?+G.siswaK:null }), rpc('as_guru_ujian_list', { p_passcode:S.pc, p_jenis:'formatif' }) ]);
+  const [list, ul] = await Promise.all([ rpc('as_guru_siswa_list', { p_passcode:S.pc, p_kelas: G.siswaK?+G.siswaK:null }), rpc('as_guru_ujian_list', { p_passcode:S.pc, p_jenis:S.jenis }) ]);
   G.daftar = list; G.ujian = ul;
   const jm = $('jmlMurid'), tb = $('daftarMurid'); if (!jm || !tb) return;
   jm.textContent = list.length + ' murid' + (G.siswaK ? ' (Kelas '+G.siswaK+')' : ' (semua kelas)');
@@ -633,7 +644,7 @@ function cetakHtml(html){
   window.print();
 }
 async function cetakKelas(kode, kelas){
-  const u = (await rpc('as_guru_ujian_list', { p_passcode:S.pc, p_jenis:'formatif' })).find(x=>x.kode===kode);
+  const u = (await rpc('as_guru_ujian_list', { p_passcode:S.pc, p_jenis:S.jenis })).find(x=>x.kode===kode);
   const list = await rpc('as_guru_siswa_list', { p_passcode:S.pc, p_kelas:kelas });
   cetakHtml(`<div class="kartu"><div class="kartu-judul" style="display:block">Daftar Akses Asesmen · Kelas ${kelas}${u?' · '+esc(u.mapel)+' · '+esc(u.judul):''}</div><p>Alamat: asesmen.ciptaguru.com → Saya Murid · Kode ruang: <b>${kode}</b></p>${tabelAkses(list)}</div>`);
 }
@@ -672,7 +683,7 @@ async function resetPin(kode){ try { const r = await rpc('as_guru_siswa_pin', { 
 async function hapusMurid(kode, nama){ if (!confirm('Hapus murid '+nama+'? Nilainya ikut terhapus.')) return; try { await rpc('as_guru_siswa_hapus', { p_passcode:S.pc, p_kode:kode }); toast('Murid dihapus'); muatDaftar(); } catch(e){ toast(e.message, true); } }
 
 async function gHasil(body){
-  const ul = await rpc('as_guru_ujian_list', { p_passcode:S.pc, p_jenis:'formatif' });
+  const ul = await rpc('as_guru_ujian_list', { p_passcode:S.pc, p_jenis:S.jenis });
   if (!ul.length) { body.innerHTML = '<div class="empty card">Belum ada sesi ujian.</div>'; return; }
   if (!G.hasilKode || !ul.some(u=>u.kode===G.hasilKode)) G.hasilKode = ul[0].kode;
   const h = await rpc('as_guru_hasil', { p_passcode:S.pc, p_kode:G.hasilKode });
